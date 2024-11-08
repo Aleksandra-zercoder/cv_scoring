@@ -19,37 +19,50 @@ SYSTEM_PROMPT = """
 """.strip()
 
 
+# Функция для запроса к GPT
 def request_gpt(system_prompt, user_prompt):
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        max_tokens=1000,
-        temperature=0,
-    )
-    return response.choices[0].message.content
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",  # используем правильное имя модели
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=1000,
+            temperature=0,
+        )
+        return response['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        print(f"Ошибка при обращении к API: {e}")
+        return None
 
-
-st.title("CV Scoring App")
-
-job_description_url = st.text_area("Enter the job description url")
-
-cv_url = st.text_area("Enter the CV url")
-
-if st.button("Score CV"):
-    with st.spinner("Scoring CV..."):
-
+# Основная функция для оценки кандидата
+def evaluate_candidate(job_description_url, cv_url):
+    # Получение описания вакансии и резюме
+    if job_description_url.startswith("http"):
         job_description = get_job_description(job_description_url)
-        cv = get_candidate_info(cv_url)
+    else:
+        job_description = job_description_url  # Если введен текст, используем его напрямую
 
-        st.write("Job description:")
-        st.write(job_description)
-        st.write("CV:")
-        st.write(cv)
+    if cv_url.startswith("http"):
+        cv_info = get_candidate_info(cv_url)
+    else:
+        cv_info = cv_url  # Если введен текст, используем его напрямую
 
-        user_prompt = f"# ВАКАНСИЯ\n{job_description}\n\n# РЕЗЮМЕ\n{cv}"
-        response = request_gpt(SYSTEM_PROMPT, user_prompt)
+    if job_description and cv_info:
+        # Отправка данных в GPT для получения результата
+        combined_input = f"Оценка кандидата по вакансии:\n\n{job_description}\n\nРезюме кандидата:\n\n{cv_info}"
+        evaluation = request_gpt(SYSTEM_PROMPT, combined_input)
+        return evaluation
+    else:
+        return "Ошибка при получении данных."
 
-    st.write(response)
+# Интерфейс Streamlit
+st.title("Оценка кандидата")
+
+job_description_url = st.text_input("Введите ссылку на описание вакансии")
+cv_url = st.text_input("Введите ссылку на резюме кандидата или текст резюме")
+
+if st.button("Оценить"):
+    evaluation_result = evaluate_candidate(job_description_url, cv_url)
+    st.write("Результат оценки:", evaluation_result)
